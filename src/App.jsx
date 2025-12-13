@@ -111,22 +111,22 @@ function App() {
 
   if (!currentChart || !chartData) {
     return (
-      <div className="w-screen h-screen bg-[#003f5c] flex items-center justify-center">
+      <div className="w-screen h-screen bg-[#003B4C] flex items-center justify-center">
         <div className="text-white">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="w-screen h-screen bg-[#003f5c] overflow-hidden">
+    <div className="w-screen h-screen bg-[#003B4C] overflow-hidden">
       <Navigation
         variations={variations}
         currentVariation={currentVariation}
         onVariationChange={setCurrentVariation}
       />
       
-      <div className="pt-16 h-full w-full relative">
-        <div className="relative w-full h-full">
+      <div className="pt-16 h-full w-full relative" style={{ padding: 0, margin: 0, left: 0, right: 0 }}>
+        <div className="relative w-full h-full" style={{ padding: 0, margin: 0, width: '100%', left: 0, right: 0 }}>
           {isSearchMode ? (
             <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 search-container">
               <input

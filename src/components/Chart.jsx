@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   LineChart,
   Line,
@@ -12,6 +12,8 @@ import {
 
 const Chart = ({ data, series, title, onTitleClick, isSearchMode }) => {
   const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [animationActive, setAnimationActive] = useState(true);
+  const hasAnimated = useRef(false);
 
   const handleMouseMove = useCallback((e) => {
     if (e && e.activePayload && e.activePayload[0]) {
@@ -23,13 +25,28 @@ const Chart = ({ data, series, title, onTitleClick, isSearchMode }) => {
     setHoveredPoint(null);
   }, []);
 
+  // Disable animation after initial load - only animate once on mount
+  useEffect(() => {
+    if (!hasAnimated.current) {
+      // Wait for animation to complete (default Recharts animation duration is ~1000ms)
+      const timer = setTimeout(() => {
+        setAnimationActive(false);
+        hasAnimated.current = true;
+      }, 1200);
+      return () => clearTimeout(timer);
+    } else {
+      // If we've already animated, disable immediately
+      setAnimationActive(false);
+    }
+  }, []);
+
   // Custom tooltip that shows crosshair values
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload || !payload.length) return null;
 
     const data = payload[0].payload;
     return (
-      <div className="bg-[#003f5c] border border-white/20 rounded px-3 py-2 shadow-lg">
+      <div className="bg-[#003B4C] border border-white/20 rounded px-3 py-2 shadow-lg">
         <p className="text-white/80 text-sm mb-1">{data.dateLabel}</p>
         {payload.map((entry, index) => (
           <p key={index} className="text-sm" style={{ color: entry.color }}>
@@ -54,7 +71,7 @@ const Chart = ({ data, series, title, onTitleClick, isSearchMode }) => {
         {!isSearchMode && (
           <button
             onClick={onTitleClick}
-            className="text-white text-2xl font-semibold hover:text-white/80 transition-colors cursor-pointer"
+            className="text-white text-xl font-semibold hover:text-white/80 transition-colors cursor-pointer"
           >
             {title}
           </button>
@@ -75,13 +92,15 @@ const Chart = ({ data, series, title, onTitleClick, isSearchMode }) => {
       </div>
 
       {/* Chart Container */}
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={data}
-          margin={{ top: 80, right: 20, left: 20, bottom: 20 }}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-        >
+      <div className="w-full h-full" style={{ padding: 0, margin: 0, left: 0, right: 0 }}>
+        <ResponsiveContainer width="100%" height="100%" style={{ padding: 0, margin: 0 }}>
+          <LineChart
+            data={data}
+            margin={{ top: 80, right: -5, left: -5, bottom: 0 }}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            style={{ padding: 0, margin: 0 }}
+          >
           <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
           
           {/* Hidden X Axis */}
@@ -91,6 +110,7 @@ const Chart = ({ data, series, title, onTitleClick, isSearchMode }) => {
             tick={false}
             axisLine={false}
             tickLine={false}
+            height={0}
           />
           
           {/* Hidden Y Axis */}
@@ -99,6 +119,7 @@ const Chart = ({ data, series, title, onTitleClick, isSearchMode }) => {
             tick={false}
             axisLine={false}
             tickLine={false}
+            width={0}
           />
 
           <Tooltip content={<CustomTooltip />} />
@@ -141,10 +162,12 @@ const Chart = ({ data, series, title, onTitleClick, isSearchMode }) => {
               dot={false}
               activeDot={<CustomActiveDot />}
               connectNulls
+              isAnimationActive={animationActive}
             />
           ))}
-        </LineChart>
-      </ResponsiveContainer>
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 };

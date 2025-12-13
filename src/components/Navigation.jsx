@@ -2,9 +2,9 @@ import React from 'react';
 
 const Navigation = ({ variations, currentVariation, onVariationChange }) => {
   return (
-    <nav className="fixed top-0 left-0 right-0 h-16 bg-[#003f5c] z-50 flex items-center justify-between px-6 border-b border-white/10">
+    <nav className="fixed top-0 left-0 right-0 h-16 bg-[#003B4C] z-50 flex items-center justify-between px-6 border-b border-white/10">
       {/* Logo */}
-      <div className="text-white text-xl font-semibold">
+      <div className="text-white text-base font-semibold">
         Caravanserai
       </div>
 
@@ -17,9 +17,9 @@ const Navigation = ({ variations, currentVariation, onVariationChange }) => {
               <button
                 key={variation}
                 onClick={() => onVariationChange(variation)}
-                className={`px-4 py-1.5 rounded text-sm font-medium transition-all ${
+                className={`px-3 py-1 rounded text-xs font-medium transition-all ${
                   currentVariation === variation
-                    ? 'bg-white text-[#003f5c]'
+                    ? 'bg-white text-[#003B4C]'
                     : 'text-white/70 hover:text-white'
                 }`}
               >
@@ -31,10 +31,10 @@ const Navigation = ({ variations, currentVariation, onVariationChange }) => {
 
         {/* Navigation Links */}
         <div className="flex items-center gap-4">
-          <a href="#" className="text-white/70 hover:text-white text-sm transition-colors">
+          <a href="#" className="text-white/70 hover:text-white text-xs transition-colors">
             About
           </a>
-          <a href="#" className="text-white/70 hover:text-white text-sm transition-colors">
+          <a href="#" className="text-white/70 hover:text-white text-xs transition-colors">
             Docs
           </a>
         </div>
