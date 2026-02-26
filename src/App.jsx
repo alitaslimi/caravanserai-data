@@ -1,176 +1,227 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Chart from './components/Chart';
-import Navigation from './components/Navigation';
-import { loadCSV, transformChartData, getAvailableCharts, getChartSeries } from './utils/dataLoader';
+import Navigation, { NAV_HEIGHT } from './components/Navigation.jsx';
+import Chart from './components/Chart.jsx';
+import { loadCSV, transformChartData, getAvailableCharts, getChartSeries } from './utils/dataLoader.js';
 
-function App() {
-  const [chartData, setChartData] = useState(null);
+const BG = '#003B4C';
+const BOTTOM_PADDING = 16; // px — lifts chart slightly off the bottom edge
+
+export default function App() {
+  const [charts] = useState(() => getAvailableCharts());
   const [currentChart, setCurrentChart] = useState(null);
-  const [currentVariation, setCurrentVariation] = useState('historical');
-  const [isSearchMode, setIsSearchMode] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [availableCharts, setAvailableCharts] = useState([]);
-  const [filteredCharts, setFilteredCharts] = useState([]);
-  const searchInputRef = useRef(null);
+  const [currentVariation, setCurrentVariation] = useState(null);
+  const [chartData, setChartData] = useState(null);
 
-  // Initialize available charts
+  // Search / title-click state
+  const [searchMode, setSearchMode] = useState(false);
+  const [query, setQuery] = useState('');
+  const searchRef = useRef(null);
+
+  // Seed initial chart + variation on mount
   useEffect(() => {
-    const charts = getAvailableCharts();
-    setAvailableCharts(charts);
-    setFilteredCharts(charts);
     if (charts.length > 0) {
-      setCurrentChart(charts[0]);
+      const first = charts[0];
+      const firstVariation = Object.keys(first.series)[0];
+      setCurrentChart(first);
+      setCurrentVariation(firstVariation);
     }
-  }, []);
+  }, [charts]);
 
-  // Load chart data when chart or variation changes
+  // Load CSV whenever chart or variation changes
   useEffect(() => {
-    if (!currentChart) return;
+    if (!currentChart || !currentVariation) return;
+    let cancelled = false;
 
-    const loadData = async () => {
+    (async () => {
       try {
-        // Construct file path based on variation
-        const fileName = currentChart.file;
-        const filePath = `/${fileName}`;
-        
-        // Get series for current variation
-        const seriesColumns = getChartSeries(currentChart, currentVariation);
-        
-        const csvData = await loadCSV(filePath);
-        const { data, series } = transformChartData(csvData, seriesColumns);
-        
-        setChartData({ data, series });
-      } catch (error) {
-        console.error('Error loading chart data:', error);
+        const columns = getChartSeries(currentChart, currentVariation);
+        const raw = await loadCSV(`/${currentChart.file}`);
+        if (!cancelled) {
+          setChartData(transformChartData(raw, columns));
+        }
+      } catch (err) {
+        console.error('Failed to load chart data:', err);
       }
-    };
+    })();
 
-    loadData();
+    return () => { cancelled = true; };
   }, [currentChart, currentVariation]);
 
-  // Handle search input
+  // Focus search input when entering search mode
   useEffect(() => {
-    if (isSearchMode && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [isSearchMode]);
+    if (searchMode) searchRef.current?.focus();
+  }, [searchMode]);
 
-  const handleTitleClick = () => {
-    setIsSearchMode(true);
-    setSearchQuery('');
-    setFilteredCharts(availableCharts);
-  };
-
-  const handleSearchChange = (e) => {
-    const query = e.target.value.toLowerCase();
-    setSearchQuery(query);
-    
-    if (query === '') {
-      setFilteredCharts(availableCharts);
-    } else {
-      const filtered = availableCharts.filter(chart =>
-        chart.name.toLowerCase().includes(query)
-      );
-      setFilteredCharts(filtered);
-    }
-  };
-
-  const handleChartSelect = (chart) => {
-    setCurrentChart(chart);
-    setIsSearchMode(false);
-    setSearchQuery('');
-  };
-
-  const handleSearchKeyDown = (e) => {
-    if (e.key === 'Enter' && filteredCharts.length > 0) {
-      handleChartSelect(filteredCharts[0]);
-    } else if (e.key === 'Escape') {
-      setIsSearchMode(false);
-      setSearchQuery('');
-    }
-  };
-
+  // Close search on outside click
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (isSearchMode && !e.target.closest('.search-container')) {
-        setIsSearchMode(false);
-        setSearchQuery('');
+    if (!searchMode) return;
+    const handler = (e) => {
+      if (!e.target.closest('[data-search]')) {
+        setSearchMode(false);
+        setQuery('');
       }
     };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [searchMode]);
 
-    if (isSearchMode) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [isSearchMode]);
+  const filteredCharts = query.trim()
+    ? charts.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()))
+    : charts;
 
-  // Get variations from current chart, or use defaults
-  const variations = currentChart?.series && typeof currentChart.series === 'object' 
+  const variations = currentChart
     ? Object.keys(currentChart.series)
-    : ['historical'];
+    : [];
 
-  if (!currentChart || !chartData) {
+  const handleChartSelect = (chart) => {
+    const firstVariation = Object.keys(chart.series)[0];
+    setCurrentChart(chart);
+    setCurrentVariation(firstVariation);
+    setSearchMode(false);
+    setQuery('');
+  };
+
+  const handleVariationChange = (v) => {
+    setCurrentVariation(v);
+  };
+
+  // ─── Loading screen ───────────────────────────────────────────────────────
+  if (!chartData) {
     return (
-      <div className="w-screen h-screen bg-[#003B4C] flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div
+        style={{
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: BG,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'rgba(255,255,255,0.5)',
+          fontFamily: 'Raleway, sans-serif',
+          fontSize: 13,
+        }}
+      >
+        Loading…
       </div>
     );
   }
 
+  // ─── Main layout ──────────────────────────────────────────────────────────
   return (
-    <div className="w-screen h-screen bg-[#003B4C] overflow-hidden">
+    <div style={{ width: '100vw', height: '100vh', backgroundColor: BG, overflow: 'hidden' }}>
+
       <Navigation
         variations={variations}
         currentVariation={currentVariation}
-        onVariationChange={setCurrentVariation}
+        onVariationChange={handleVariationChange}
       />
-      
-      <div className="pt-16 h-full w-full relative" style={{ padding: 0, margin: 0, left: 0, right: 0 }}>
-        <div className="relative w-full h-full" style={{ padding: 0, margin: 0, width: '100%', left: 0, right: 0 }}>
-          {isSearchMode ? (
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 search-container">
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onKeyDown={handleSearchKeyDown}
-                className="bg-white/10 border border-white/30 rounded-lg px-4 py-2 text-white text-lg w-96 focus:outline-none focus:border-white/50"
-                placeholder="Search charts..."
-              />
-              {filteredCharts.length > 0 && (
-                <div className="mt-2 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 overflow-hidden">
-                  {filteredCharts.slice(0, 5).map((chart) => (
-                    <button
-                      key={chart.id}
-                      onClick={() => handleChartSelect(chart)}
-                      className="w-full text-left px-4 py-2 text-white hover:bg-white/20 transition-colors"
-                    >
-                      {chart.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {filteredCharts.length === 0 && searchQuery && (
-                <div className="mt-2 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 px-4 py-2 text-white/70">
-                  No charts found
-                </div>
-              )}
-            </div>
-          ) : null}
-          
-          <Chart
-            data={chartData.data}
-            series={chartData.series}
-            title={currentChart.name}
-            onTitleClick={handleTitleClick}
-            isSearchMode={isSearchMode}
-          />
-        </div>
+
+      {/* Chart area — fills remaining space below nav, with small bottom inset */}
+      <div
+        style={{
+          position: 'absolute',
+          top: NAV_HEIGHT,
+          left: 0,
+          right: 0,
+          bottom: BOTTOM_PADDING,
+        }}
+      >
+        {/* Search overlay — replaces chart title when active */}
+        {searchMode && (
+          <div
+            data-search
+            style={{
+              position: 'absolute',
+              top: 12,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 20,
+              width: 360,
+            }}
+          >
+            <input
+              ref={searchRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && filteredCharts.length > 0) handleChartSelect(filteredCharts[0]);
+                if (e.key === 'Escape') { setSearchMode(false); setQuery(''); }
+              }}
+              placeholder="Search charts…"
+              style={{
+                width: '100%',
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 8,
+                padding: '7px 14px',
+                color: '#fff',
+                fontSize: 14,
+                fontFamily: 'inherit',
+                outline: 'none',
+              }}
+            />
+            {filteredCharts.length > 0 && (
+              <div
+                style={{
+                  marginTop: 4,
+                  backgroundColor: 'rgba(0,59,76,0.97)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                }}
+              >
+                {filteredCharts.slice(0, 6).map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleChartSelect(c)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px 14px',
+                      background: 'none',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {filteredCharts.length === 0 && (
+              <div
+                style={{
+                  marginTop: 4,
+                  backgroundColor: 'rgba(0,59,76,0.97)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 8,
+                  padding: '8px 14px',
+                  color: 'rgba(255,255,255,0.45)',
+                  fontSize: 13,
+                  fontFamily: 'inherit',
+                }}
+              >
+                No charts found
+              </div>
+            )}
+          </div>
+        )}
+
+        <Chart
+          data={chartData.data}
+          series={chartData.series}
+          title={currentChart?.name ?? ''}
+          onTitleClick={() => { setSearchMode(true); setQuery(''); }}
+          isSearchMode={searchMode}
+        />
       </div>
     </div>
   );
 }
-
-export default App;
-

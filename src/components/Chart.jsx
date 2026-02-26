@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   LineChart,
   Line,
@@ -6,171 +6,213 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
 
+// ─── Custom tooltip ────────────────────────────────────────────────────────────
+const CustomTooltip = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const { dateLabel } = payload[0].payload;
+  return (
+    <div
+      style={{
+        backgroundColor: '#003B4C',
+        border: '1px solid rgba(255,255,255,0.15)',
+        borderRadius: 6,
+        padding: '8px 12px',
+        fontFamily: 'inherit',
+      }}
+    >
+      <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginBottom: 4 }}>
+        {dateLabel}
+      </p>
+      {payload.map((entry) => (
+        <p key={entry.dataKey} style={{ color: entry.color, fontSize: 12, margin: '2px 0' }}>
+          {entry.name}: {entry.value != null ? entry.value.toFixed(2) : 'N/A'}
+        </p>
+      ))}
+    </div>
+  );
+};
+
+// ─── Custom active dot ─────────────────────────────────────────────────────────
+const ActiveDot = ({ cx, cy, fill }) => (
+  <circle cx={cx} cy={cy} r={4} fill={fill} stroke="#fff" strokeWidth={2} />
+);
+
+// ─── Custom legend ─────────────────────────────────────────────────────────────
+const CustomLegend = ({ payload }) => {
+  if (!payload || !payload.length) return null;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        gap: 24,
+        paddingTop: 16,
+        fontFamily: 'inherit',
+      }}
+    >
+      {payload.map((entry) => (
+        <div key={entry.value} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span
+            style={{
+              display: 'inline-block',
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: entry.color,
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Module-level flag — survives re-renders and re-mounts, only resets on full page reload
+let hasAnimatedOnce = false;
+
+// ─── Chart ─────────────────────────────────────────────────────────────────────
 const Chart = ({ data, series, title, onTitleClick, isSearchMode }) => {
-  const [hoveredPoint, setHoveredPoint] = useState(null);
-  const [animationActive, setAnimationActive] = useState(true);
-  const hasAnimated = useRef(false);
+  const [hoveredDate, setHoveredDate] = useState(null);
+  // Start active only if we haven't animated yet; once the first animation
+  // completes naturally, hasAnimatedOnce flips and no re-render ever re-enables it
+  const [animationActive, setAnimationActive] = useState(!hasAnimatedOnce);
 
-  const handleMouseMove = useCallback((e) => {
-    if (e && e.activePayload && e.activePayload[0]) {
-      setHoveredPoint(e.activePayload[0].payload);
-    }
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setHoveredPoint(null);
-  }, []);
-
-  // Disable animation after initial load - only animate once on mount
-  useEffect(() => {
-    if (!hasAnimated.current) {
-      // Wait for animation to complete (default Recharts animation duration is ~1000ms)
-      const timer = setTimeout(() => {
-        setAnimationActive(false);
-        hasAnimated.current = true;
-      }, 1200);
-      return () => clearTimeout(timer);
-    } else {
-      // If we've already animated, disable immediately
+  const handleAnimationEnd = useCallback(() => {
+    if (!hasAnimatedOnce) {
+      hasAnimatedOnce = true;
       setAnimationActive(false);
     }
   }, []);
 
-  // Custom tooltip that shows crosshair values
-  const CustomTooltip = ({ active, payload }) => {
-    if (!active || !payload || !payload.length) return null;
+  const handleMouseMove = useCallback((e) => {
+    if (e?.activePayload?.[0]) {
+      setHoveredDate(e.activePayload[0].payload.dateLabel);
+    }
+  }, []);
 
-    const data = payload[0].payload;
-    return (
-      <div className="bg-[#003B4C] border border-white/20 rounded px-3 py-2 shadow-lg">
-        <p className="text-white/80 text-sm mb-1">{data.dateLabel}</p>
-        {payload.map((entry, index) => (
-          <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {entry.value?.toFixed(2) ?? 'N/A'}
-          </p>
-        ))}
-      </div>
-    );
-  };
+  const handleMouseLeave = useCallback(() => setHoveredDate(null), []);
 
-  // Custom dot for hover indicator
-  const CustomActiveDot = (props) => {
-    return (
-      <circle cx={props.cx} cy={props.cy} r={4} fill={props.fill} stroke="#fff" strokeWidth={2} />
-    );
-  };
+  // Y-axis domain: pull min down slightly so the lowest values aren't glued
+  // to the grid baseline, and add a small headroom above max.
+  const yDomain = [
+    (min) => {
+      const span = Math.max(Math.abs(min), 1);
+      return min - span * 0.12;
+    },
+    (max) => {
+      const span = Math.max(Math.abs(max), 1);
+      return max + span * 0.05;
+    },
+  ];
 
   return (
-    <div className="relative w-full h-full">
-      {/* Chart Title */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
-        {!isSearchMode && (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+
+      {/* ── Chart title (clickable → search mode) ── */}
+      {!isSearchMode && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+          }}
+        >
           <button
             onClick={onTitleClick}
-            className="text-white text-xl font-semibold hover:text-white/80 transition-colors cursor-pointer"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#fff',
+              fontSize: 16,
+              fontWeight: 600,
+              fontFamily: 'inherit',
+              opacity: 0.9,
+              padding: 0,
+            }}
+            onMouseEnter={(e) => (e.target.style.opacity = 1)}
+            onMouseLeave={(e) => (e.target.style.opacity = 0.9)}
           >
             {title}
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Legend */}
-      <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-10 flex gap-6">
-        {series.map((s) => (
-          <div key={s.key} className="flex items-center gap-2">
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: s.color }}
-            />
-            <span className="text-white/90 text-sm">{s.name}</span>
-          </div>
-        ))}
-      </div>
+      {/* ── Recharts ── */}
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={data}
+          margin={{ top: 52, right: 10, left: 10, bottom: 8 }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          {/* Horizontal grid lines only — avoids visual "border" from vertical lines */}
+          <CartesianGrid
+            horizontal={true}
+            vertical={false}
+            stroke="rgba(255,255,255,0.1)"
+          />
 
-      {/* Chart Container */}
-      <div className="w-full h-full" style={{ padding: 0, margin: 0, left: 0, right: 0 }}>
-        <ResponsiveContainer width="100%" height="100%" style={{ padding: 0, margin: 0 }}>
-          <LineChart
-            data={data}
-            margin={{ top: 80, right: -5, left: -5, bottom: 0 }}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            style={{ padding: 0, margin: 0 }}
-          >
-          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
-          
-          {/* Hidden X Axis */}
+          {/* X axis — invisible, just provides the data key */}
           <XAxis
             dataKey="dateLabel"
-            stroke="#ffffff00"
-            tick={false}
-            axisLine={false}
-            tickLine={false}
-            height={0}
+            hide={true}
           />
-          
-          {/* Hidden Y Axis */}
+
+          {/* Y axis — invisible, domain adds breathing room at bottom */}
           <YAxis
-            stroke="#ffffff00"
-            tick={false}
-            axisLine={false}
-            tickLine={false}
-            width={0}
+            hide={true}
+            domain={yDomain}
           />
 
           <Tooltip content={<CustomTooltip />} />
 
-          {/* Crosshair Reference Lines */}
-          {hoveredPoint && (
-            <>
-              <ReferenceLine
-                x={hoveredPoint.dateLabel}
-                stroke="#ffffff40"
-                strokeDasharray="2 2"
-                strokeWidth={1}
-              />
-              {series.map((s) => {
-                const value = hoveredPoint[s.key];
-                if (value != null) {
-                  return (
-                    <ReferenceLine
-                      key={s.key}
-                      y={value}
-                      stroke="#ffffff40"
-                      strokeDasharray="2 2"
-                      strokeWidth={1}
-                    />
-                  );
-                }
-                return null;
-              })}
-            </>
+          <Legend
+            verticalAlign="bottom"
+            content={<CustomLegend />}
+          />
+
+          {/* Vertical crosshair on hover */}
+          {hoveredDate && (
+            <ReferenceLine
+              x={hoveredDate}
+              stroke="rgba(255,255,255,0.25)"
+              strokeDasharray="3 3"
+              strokeWidth={1}
+            />
           )}
 
-          {/* Data Lines */}
-          {series.map((s) => (
+          {/* Series lines */}
+          {series.map((s, i) => (
             <Line
               key={s.key}
               type="monotone"
               dataKey={s.key}
+              name={s.name}
               stroke={s.color}
               strokeWidth={2}
               dot={false}
-              activeDot={<CustomActiveDot />}
+              activeDot={<ActiveDot />}
               connectNulls
               isAnimationActive={animationActive}
+              onAnimationEnd={i === 0 ? handleAnimationEnd : undefined}
             />
           ))}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 };
 
 export default Chart;
-

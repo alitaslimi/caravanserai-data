@@ -2,26 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
+*, *::before, *::after {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
 }
 
 html, body {
-  margin: 0 !important;
-  padding: 0 !important;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  background-color: #003B4C;
 }
 
 body {
-  font-family: 'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow: hidden;
 }
 
 #root {
@@ -29,60 +26,3 @@ body {
   height: 100vh;
   overflow: hidden;
 }
-
-/* Remove borders from Recharts SVG elements */
-.recharts-wrapper,
-.recharts-wrapper svg,
-.recharts-surface {
-  border: none !important;
-  outline: none !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-/* Remove all padding and margins from chart containers */
-.recharts-wrapper {
-  padding: 0 !important;
-  margin: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  width: 100% !important;
-}
-
-.recharts-legend-wrapper {
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-/* Ensure full width */
-.recharts-responsive-container {
-  width: 100% !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-}
-
-.recharts-cartesian-axis {
-  display: none !important;
-}
-
-/* Remove any default spacing from chart area */
-.recharts-cartesian-grid,
-.recharts-layer {
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-/* Target the chart area specifically */
-.recharts-cartesian-grid-horizontal,
-.recharts-cartesian-grid-vertical {
-  border: none !important;
-}
-
-/* Remove any border from the main chart container */
-.recharts-line,
-.recharts-line-curve {
-  border: none !important;
-}
-
